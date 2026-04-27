@@ -1,0 +1,28 @@
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: #111;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+}
