@@ -34,10 +34,21 @@
 - `wrangler pages deploy dist` — 수동 배포
 - `npx supabase db push` — 스키마 마이그레이션
 
-## Environment Variables (`functions/api/` 에서만 사용)
+## Environment Variables
+
+Supabase 새 API 키 형식 사용 (`sb_publishable_*` / `sb_secret_*`).
+
+### 프론트엔드 (Vite, `VITE_` prefix만 번들 노출)
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (RLS로 보호되는 공개 키)
+
+### 서버 전용 (`functions/api/`, Cloudflare Pages Secrets)
 
 - `OPENAI_API_KEY`
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY` (프론트 OK), `SUPABASE_SERVICE_KEY` (서버만)
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY` ← 절대 채팅/파일 노출 금지, CF Pages Settings → Variables and Secrets 에 Type=Secret 으로만 등록
 - `POLAR_SECRET`, `POLAR_WEBHOOK_SECRET`
 - `CF_BROWSER_RENDERING_TOKEN`
 
