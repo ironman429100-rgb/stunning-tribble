@@ -2,7 +2,7 @@
 
 ## Stack
 
-- React + Vite + TypeScript (no Next.js)
+- React 19 + Vite 8 + TypeScript (no Next.js)
 - Cloudflare Pages + Pages Functions + Queues + R2
 - Supabase (Postgres + Auth)
 - OpenAI Images 2.0 (gpt-image-2): Standard $0.04, HD $0.08
@@ -41,10 +41,20 @@
 - `POLAR_SECRET`, `POLAR_WEBHOOK_SECRET`
 - `CF_BROWSER_RENDERING_TOKEN`
 
+## Production URL
+
+- URL: https://stunning-tribble-1o3.pages.dev
+- Auto-deploy: main branch (Cloudflare Pages → GitHub `ironman429100-rgb/stunning-tribble`)
+- Compatibility flag: `nodejs_compat` (compatibility date 2026-04-27)
+- Node version: 20
+
 ## Sprint Status
 
-- [ ] Sprint 0 — 셋업
+- [x] Sprint 0 — 셋업
 - [ ] Sprint 1 — 뼈대 (Day 1-3)
+  - [x] Day 1 — 폴더 구조 + 라우팅 골격 (commit `6adf760`)
+  - [ ] Day 2 — 인프라 연동 + 핵심 타입 + 공통 컴포넌트
+  - [ ] Day 3 — Supabase + R2 + OpenAI Images 2.0 PoC
 - [ ] Sprint 2 — 핵심 기능 (Day 4-10)
 - [ ] Sprint 3 — 인증/결제/상세 (Day 11-17)
 - [ ] Sprint 4 — 베타 (Day 18-28)
