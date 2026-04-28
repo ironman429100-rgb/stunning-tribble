@@ -9,16 +9,20 @@
  */
 
 /**
- * SKU 라이프사이클.
- * - draft       : URL 입력만 됨, 아직 생성 안 함
- * - generating  : OpenAI Images 호출 중 (Queue에 들어가 있음)
- * - ready       : 6컷 + 상세 모두 R2에 저장 완료, 다운로드 가능
- * - error       : 콘텐츠 정책 거부 / 모델 일관성 실패 / 비용 초과 등
+ * SKU 라이프사이클 5단계.
+ * - draft       : URL 입력만 됨, 아직 생성 큐에 안 올림
+ * - queued      : Cloudflare Queues 에 enqueue 됨, OpenAI 호출 대기
+ * - generating  : OpenAI Images 호출 진행 중 (6컷 + 상세 1장)
+ * - ready       : 모든 이미지 R2 저장 완료, 다운로드/발행 가능
+ * - error       : 콘텐츠 정책 거부 / 일관성 실패 / 비용 초과 / 타임아웃 등
  *
- * v1: 4개 상태로 충분
- * v2 후보: `partial` (6컷 중 일부만) — 지금은 부분 실패도 error로 묶음
+ * 전이: draft → queued → generating → ready
+ *       어떤 단계에서든 → error 가능.
+ *
+ * v1: 5개 상태.
+ * v2 후보: `partial` (6컷 중 일부만 성공) — 지금은 부분 실패도 error로 묶음.
  */
-export type SkuStatus = 'draft' | 'generating' | 'ready' | 'error';
+export type SkuStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'error';
 
 /**
  * 마진 계산 결과. 도매가 + 부가비용 → 권장 소매가 산출.

@@ -40,7 +40,15 @@ create table public.skus (
   source_url      text not null,
   source_platform text not null check (source_platform in ('sinsangmarket', 'unknown')),
   product_name    text,
-  status          text not null check (status in ('draft', 'generating', 'ready', 'error'))
+  -- SKU 라이프사이클 5단계:
+  --   draft       URL 입력만 됨, 아직 생성 큐에 안 올림
+  --   queued      Cloudflare Queues 에 enqueue 됨, OpenAI 호출 대기
+  --   generating  OpenAI Images 호출 진행 중 (6컷 + 상세 1장)
+  --   ready       모든 이미지 R2 저장 완료, 다운로드/발행 가능
+  --   error       콘텐츠 정책 거부 / 일관성 실패 / 비용 초과 / 타임아웃 등
+  -- 전이: draft → queued → generating → ready
+  --       어떤 단계에서든 → error 가능
+  status          text not null check (status in ('draft', 'queued', 'generating', 'ready', 'error'))
                     default 'draft',
   -- string[] (R2 URL 목록). 0~7개. index 0~5 = 모델샷, 6 = 상세.
   generated_images jsonb not null default '[]'::jsonb,
