@@ -1,0 +1,37 @@
+# Cloudflare Pages 설정.
+# 이 파일은 Pages Functions 의 binding/secret/compat 정의의 IaC 진실 원천.
+#
+# 주의:
+# - Pages 프로젝트는 대시보드 또는 wrangler.toml 둘 중 한 곳에서만 binding 관리.
+#   둘 다 있으면 wrangler.toml 이 다음 배포에서 덮어쓰니, 본 파일이 정답이라고 보면 됨.
+# - Secrets 는 wrangler.toml 에 적지 않음. CF Pages → Settings → Variables and Secrets
+#   에 Type=Secret 으로 등록하고, 런타임에서 `env.SUPABASE_SECRET_KEY` 처럼 읽음.
+
+name = "stunning-tribble"
+compatibility_date = "2026-04-27"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+# ── R2 binding ──
+# 모델 reference 이미지, 생성된 모델샷 6컷, 상세페이지 1장 모두 이 버킷에 저장.
+# Public access 는 r2.dev 서브도메인 또는 (베타 후) custom domain 으로 노출.
+# Pages Functions 에서 `env.IMAGES_BUCKET` 으로 접근 (R/W).
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "fashion-saas-images"
+
+# ── Queues (Sprint 2 에서 활성화) ──
+# 도매처 크롤링 큐 + OpenAI Images 생성 큐 분리 예정.
+# [[queues.producers]]
+# binding = "GENERATE_QUEUE"
+# queue   = "fashion-saas-generate"
+#
+# [[queues.consumers]]
+# queue          = "fashion-saas-generate"
+# max_batch_size = 1
+
+# ── Vars (비밀 아닌 기본값) ──
+# 비밀이 아닌 환경 기본값만 여기. URL 같은 것도 가급적 대시보드에서 관리해
+# 코드 변경 없이 환경별로 바꿀 수 있게 하는 편이 낫지만, 진짜 정적 상수는 OK.
+[vars]
+R2_PUBLIC_HOST = "" # r2.dev 서브도메인 또는 custom domain. 빈 값이면 함수에서 throw.

@@ -21,6 +21,9 @@ dist-ssr
 .wrangler
 .dev.vars
 
+# Supabase CLI cache (project-ref, version pins 등 자동 생성)
+supabase/.temp/
+
 # Claude Code local settings
 .claude/settings.local.json
 

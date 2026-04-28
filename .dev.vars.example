@@ -1,0 +1,14 @@
+# 로컬 Pages Functions 개발 (wrangler pages dev) 전용 secrets.
+# 실제 값은 .dev.vars 파일에 채우고, 그 파일은 .gitignore 됨.
+#
+# 프론트(Vite)는 .env.local 을 읽음 — 별개 파일.
+# 프로덕션은 CF Pages → Settings → Variables and Secrets 가 진실 원천.
+
+SUPABASE_URL=https://fkyaazenwjneeonwyyuj.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_IxLlFrICvwwhwso_92BEzQ_sH707NQ9
+SUPABASE_SECRET_KEY=
+
+OPENAI_API_KEY=
+
+# r2.dev 도메인 (오후 STEP 3 에서 받은 pub-xxxxxxxx.r2.dev). 끝 슬래시 없이.
+R2_PUBLIC_HOST=
