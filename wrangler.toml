@@ -30,8 +30,25 @@ bucket_name = "fashion-saas-images"
 # queue          = "fashion-saas-generate"
 # max_batch_size = 1
 
-# ── Vars (비밀 아닌 기본값) ──
-# 비밀이 아닌 환경 기본값만 여기. URL 같은 것도 가급적 대시보드에서 관리해
-# 코드 변경 없이 환경별로 바꿀 수 있게 하는 편이 낫지만, 진짜 정적 상수는 OK.
+# ── Vars (Plaintext 환경변수) ──
+# 2026 년 CF Pages 정책 변경: 대시보드는 Secret 만 관리, Plaintext 는 wrangler.toml 이 진실 원천.
+# 따라서 비밀 아닌 모든 환경변수는 여기에 박는다. 변경 시 코드와 함께 PR 로 추적됨.
+#
+# Production / Preview 환경 분리 필요 시:
+#   [env.production.vars] / [env.preview.vars] 두 섹션으로 쪼개고 [vars] 제거.
+# v1: 동일 Supabase 프로젝트 + 동일 R2 버킷 사용 → 단일 [vars] 로 충분.
 [vars]
-R2_PUBLIC_HOST = "" # r2.dev 서브도메인 또는 custom domain. 빈 값이면 함수에서 throw.
+NODE_VERSION = "20"
+
+# 프론트(Vite) — VITE_ prefix 변수는 빌드 시 클라이언트 번들에 박힘.
+# Publishable key 는 RLS 로 보호되는 공개 키라 노출 OK.
+VITE_SUPABASE_URL = "https://fkyaazenwjneeonwyyuj.supabase.co"
+VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_IxLlFrICvwwhwso_92BEzQ_sH707NQ9"
+
+# 서버 (Pages Functions). Secret 이 아닌 것만.
+SUPABASE_URL = "https://fkyaazenwjneeonwyyuj.supabase.co"
+R2_PUBLIC_HOST = "https://pub-0b51813ff386490c83b3a5d49a1ff369.r2.dev"
+
+# Secret 은 여기 적지 않음. CF Pages → Settings → Variables and Secrets:
+#   - SUPABASE_SECRET_KEY  (등록됨)
+#   - OPENAI_API_KEY       (저녁 PoC 전 등록 필요)
