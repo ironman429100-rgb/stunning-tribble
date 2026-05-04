@@ -228,7 +228,9 @@ async function generateOneShot(args: {
       n: 1,
       size: IMAGE_SIZE,
       quality: 'standard',
-      response_format: 'b64_json',
+      // response_format 제거: gpt-image-2 는 이 파라미터 비지원 (Unknown parameter 400).
+      // gpt-image-1 의 'b64_json' | 'url' 옵션은 더 이상 의미 없음.
+      // 응답 구조는 b64_json / url 어느 쪽일 수 있어 아래에서 둘 다 시도.
     }),
   });
 
@@ -248,22 +250,54 @@ async function generateOneShot(args: {
   }
 
   const json = (await apiResp.json()) as OpenAiImageResponse;
-  const b64 = json.data?.[0]?.b64_json;
-  if (typeof b64 !== 'string' || b64.length === 0) {
+
+  // 첫 호출 디버깅용: shape 확인. b64_json 본문은 너무 크니 길이만.
+  // 검증 후 PoC 파일과 함께 삭제됨.
+  if (index === 0) {
+    const sampleShape = describeResponseShape(json);
+    console.log('[poc-images-2] shot 0 response shape:', JSON.stringify(sampleShape));
+  }
+
+  // 1) b64_json 우선 시도 (gpt-image-1 호환)
+  // 2) 없으면 url 시도, fetch 후 bytes 추출
+  // 3) 둘 다 없으면 응답 shape 그대로 에러로 반환
+  const datum = json.data?.[0];
+  let bytes: Uint8Array | null = null;
+
+  if (typeof datum?.b64_json === 'string' && datum.b64_json.length > 0) {
+    bytes = base64ToBytes(datum.b64_json);
+  } else if (typeof datum?.url === 'string' && datum.url.length > 0) {
+    const imgResp = await fetch(datum.url);
+    if (!imgResp.ok) {
+      return {
+        pose,
+        index,
+        status: 'failed',
+        error: {
+          httpStatus: imgResp.status,
+          message: `image url fetch failed: ${imgResp.status}`,
+          body: datum.url,
+        },
+        durationMs: Date.now() - t0,
+      };
+    }
+    const buf = await imgResp.arrayBuffer();
+    bytes = new Uint8Array(buf);
+  }
+
+  if (bytes === null) {
     return {
       pose,
       index,
       status: 'failed',
       error: {
         httpStatus: 200,
-        message: 'OpenAI 200 but no b64_json in response',
-        body: JSON.stringify(json).slice(0, 1000),
+        message: 'OpenAI 200 but no b64_json or url in response',
+        body: JSON.stringify(describeResponseShape(json)).slice(0, 1000),
       },
       durationMs: Date.now() - t0,
     };
   }
-
-  const bytes = base64ToBytes(b64);
 
   const key = buildR2Key({
     kind: 'shot',
@@ -295,6 +329,26 @@ function constantTimeEquals(a: string, b: string): boolean {
     diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   }
   return diff === 0;
+}
+
+/**
+ * 응답 객체에서 큰 문자열(b64_json) 빼고 shape 만 요약.
+ * 디버깅 로그/에러 본문에 안전하게 박을 수 있도록.
+ */
+function describeResponseShape(json: OpenAiImageResponse): unknown {
+  const datum = json.data?.[0];
+  return {
+    created: json.created,
+    dataLength: json.data?.length,
+    dataKeys: datum ? Object.keys(datum) : null,
+    has_b64_json: typeof datum?.b64_json === 'string',
+    b64_json_length: typeof datum?.b64_json === 'string' ? datum.b64_json.length : null,
+    has_url: typeof datum?.url === 'string',
+    url_value: typeof datum?.url === 'string' ? datum.url.slice(0, 200) : null,
+    revised_prompt: datum?.revised_prompt,
+    usage: json.usage,
+    error: json.error,
+  };
 }
 
 function base64ToBytes(b64: string): Uint8Array {
