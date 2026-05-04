@@ -54,8 +54,14 @@ const SIX_POSES: ReadonlyArray<string> = [
 /** 표준 이미지 크기 (세로형 패션샷). */
 const IMAGE_SIZE = '1024x1536';
 /**
- * Standard quality 1컷당 단가 추정 (USD).
- * 1024x1024 기준값. 1024x1536 은 다를 수 있어 응답의 usage 필드로 실제값 검증.
+ * Quality tier. gpt-image-2 는 'low' | 'medium' | 'high' | 'auto'.
+ * (옛날 gpt-image-1 의 'standard' | 'hd' 는 더 이상 안 받음.)
+ * v1 베이스라인은 medium. 단가는 PoC 응답 usage 로 측정.
+ */
+const QUALITY: 'low' | 'medium' | 'high' | 'auto' = 'medium';
+/**
+ * 1컷당 단가 추정 (USD). 옛날 gpt-image-1 의 standard($0.04) 값을 일단 그대로 사용.
+ * gpt-image-2 medium 의 실제 단가는 PoC 응답 usage 필드로 측정 후 보정.
  */
 const ESTIMATED_COST_PER_SHOT_USD = 0.04;
 
@@ -184,7 +190,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     meta: {
       model: 'gpt-image-2',
       size: IMAGE_SIZE,
-      quality: 'standard',
+      quality: QUALITY,
       promptPattern: `${modelDesc}, wearing ${clothingDesc}, [POSE]`,
     },
     validationNote:
@@ -227,9 +233,10 @@ async function generateOneShot(args: {
       prompt,
       n: 1,
       size: IMAGE_SIZE,
-      quality: 'standard',
+      // gpt-image-2 quality enum: 'low' | 'medium' | 'high' | 'auto'.
+      // 옛날 gpt-image-1 의 'standard' / 'hd' 는 400 invalid_value.
+      quality: QUALITY,
       // response_format 제거: gpt-image-2 는 이 파라미터 비지원 (Unknown parameter 400).
-      // gpt-image-1 의 'b64_json' | 'url' 옵션은 더 이상 의미 없음.
       // 응답 구조는 b64_json / url 어느 쪽일 수 있어 아래에서 둘 다 시도.
     }),
   });

@@ -5,7 +5,7 @@
 - React 19 + Vite 8 + TypeScript (no Next.js)
 - Cloudflare Pages + Pages Functions + Queues + R2
 - Supabase (Postgres + Auth)
-- OpenAI Images 2.0 (gpt-image-2): Standard $0.04, HD $0.08
+- OpenAI Images 2.0 (gpt-image-2): quality `low` / `medium` / `high` / `auto` — 단가 미확인 (PoC 측정 후 갱신)
 - OpenAI GPT-4o-mini for text
 - Polar.sh for payments
 - npm only (no bun/pnpm)
