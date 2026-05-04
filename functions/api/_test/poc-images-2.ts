@@ -1,27 +1,38 @@
 /**
  * Day 3 저녁 PoC — OpenAI Images 2.0 (gpt-image-2) 1회 검증.
  *
- * 목적:
- *   1) 모델 + 옷 묘사 텍스트로 6컷 생성이 콘텐츠 정책에 안 걸리는지
- *   2) prompt-only baseline 으로 얼굴 일관성이 어느 정도인지 (참고치)
- *   3) 옷 디테일 재현 품질
- *   4) 비용이 예상대로 ~$0.24 인지 (6 × $0.04 standard)
+ * 검증 4항목과 baseline 한계:
+ *   #1 6컷 모두 생성 (콘텐츠 정책 거부 0)        ← 측정 가능
+ *   #2 모델 얼굴 일관성                          ← FAIL 예상 (text-only baseline)
+ *      reference image 없이 prompt 만으로는 일관성 보장 불가.
+ *      Sprint 2 첫 작업: images.edit + reference image 로 전환.
+ *   #3 옷 디테일 재현                            ← 측정 가능
+ *   #4 비용이 예상대로인지                       ← OpenAI usage 필드로 검증
  *
- * 검증 결과가 나쁘면 Sprint 2 에서 images.edit + reference image 로 전환.
- * 이 파일은 Sprint 2 시작 시점에 삭제 예정.
+ * 따라서 본 PoC 의 실질 검증 대상은 #1 / #3 / #4. 검증 #2 는 baseline 기록용.
  *
  * 호출:
- *   POST https://stunning-tribble-1o3.pages.dev/api/_test/poc-images-2?confirm=1
+ *   POST /api/_test/poc-images-2?token=79b8a180a05044191dc70dad24c88d49
  *   Content-Type: application/json
  *   { "modelDescription": "...", "clothingDescription": "..." }
  *
  * 비용 보호:
- *   - ?confirm=1 없으면 400. 우연 호출/봇 크롤링 차단.
- *   - $0.24 / 호출. OpenAI Billing 한도 미리 설정 권장.
+ *   - ?token=<32char> 미스매치 시 401. 우연 호출/봇 크롤링 차단.
+ *   - $0.24 / 호출 추정. 실제 청구는 응답 usage 필드로 검증.
+ *
+ * Lifecycle:
+ *   - 검증 완료 → 본 파일 즉시 삭제 ("chore: remove PoC endpoint after validation")
+ *   - 토큰도 git 히스토리에서만 살아있게 두면 됨 (rotation 불요).
  */
 import type { Env } from '../_lib/env';
 import { requireEnv } from '../_lib/env';
 import { buildR2Key, putObject, publicUrl } from '../_lib/r2';
+
+/**
+ * 호출 인증용 일회성 토큰. 128-bit hex.
+ * PoC 파일과 함께 다음 커밋에서 삭제 예정.
+ */
+const POC_TOKEN = '79b8a180a05044191dc70dad24c88d49';
 
 interface PocRequestBody {
   /** 모델 외형 묘사. 한글/영문 OK. 짧을수록 일관성↓. */
@@ -42,9 +53,16 @@ const SIX_POSES: ReadonlyArray<string> = [
 
 /** 표준 이미지 크기 (세로형 패션샷). */
 const IMAGE_SIZE = '1024x1536';
-/** Standard quality 1컷당 단가 (USD). HD = $0.08, Low = $0.011. */
-const COST_PER_SHOT_USD = 0.04;
+/**
+ * Standard quality 1컷당 단가 추정 (USD).
+ * 1024x1024 기준값. 1024x1536 은 다를 수 있어 응답의 usage 필드로 실제값 검증.
+ */
+const ESTIMATED_COST_PER_SHOT_USD = 0.04;
 
+/**
+ * OpenAI 응답 형태. usage 필드는 모델/시점별로 형식이 변할 수 있어 unknown 으로 통과.
+ * 검증자가 응답 전체를 봐야 정확한 단가 확인 가능.
+ */
 interface OpenAiImageResponse {
   created: number;
   data: Array<{
@@ -52,6 +70,8 @@ interface OpenAiImageResponse {
     url?: string;
     revised_prompt?: string;
   }>;
+  /** gpt-image 계열은 input_tokens / output_tokens 형태로 채움. 모델별로 키 다름. */
+  usage?: unknown;
   /** 에러 시 OpenAI 가 채우는 필드. */
   error?: { message: string; type: string; code?: string };
 }
@@ -62,6 +82,10 @@ interface ShotResult {
   status: 'ok' | 'failed';
   /** ok 일 때만. R2 public URL. */
   url?: string;
+  /** OpenAI 응답의 usage 필드 그대로. 단가 검증용. */
+  usage?: unknown;
+  /** OpenAI 가 prompt 를 자체 수정한 결과. 콘텐츠 정책 추적용. */
+  revisedPrompt?: string;
   /** failed 일 때 OpenAI 에러 메시지 + HTTP status. */
   error?: { httpStatus: number; message: string; body: string };
   /** 이 1컷 wall-clock ms. */
@@ -77,7 +101,10 @@ interface PocResponse {
   shots: ShotResult[];
   /** ok 컷 수. 6 = 검증 #1 PASS 후보. */
   okCount: number;
-  /** 예상 청구 금액 (USD). 실제 OpenAI 청구는 별도 확인 필요. */
+  /**
+   * 추정 청구액 (USD) = okCount × 0.04.
+   * 1024x1024 기준 추정치. 1024x1536 실제값은 shots[*].usage 합산해서 검증.
+   */
   estimatedCostUsd: number;
   /** 사용된 모델 + 크기 + quality. 응답 자기문서화. */
   meta: {
@@ -86,16 +113,15 @@ interface PocResponse {
     quality: string;
     promptPattern: string;
   };
+  /** 검증 #2 가 FAIL 예상이라는 사실 응답에도 명시. */
+  validationNote: string;
 }
 
 export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const url = new URL(ctx.request.url);
-  if (url.searchParams.get('confirm') !== '1') {
-    return jsonError(
-      400,
-      'POC_NO_CONFIRM',
-      '비용 보호: ?confirm=1 쿼리스트링 필요. 1회당 ~$0.24 청구됨.',
-    );
+  const token = url.searchParams.get('token') ?? '';
+  if (!constantTimeEquals(token, POC_TOKEN)) {
+    return jsonError(401, 'POC_BAD_TOKEN', '?token 값 불일치 또는 누락.');
   }
 
   let body: PocRequestBody;
@@ -117,7 +143,7 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
 
-  // 6 호출 병렬. Promise.all 이 아닌 allSettled 로 부분 실패도 살리기.
+  // 6 호출 병렬. allSettled 로 부분 실패도 살리기.
   const settled = await Promise.allSettled(
     SIX_POSES.map((pose, idx) =>
       generateOneShot({
@@ -133,7 +159,6 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
 
   const shots: ShotResult[] = settled.map((s, idx) => {
     if (s.status === 'fulfilled') return s.value;
-    // Promise.allSettled 의 rejected 케이스 — generateOneShot 자체가 throw 한 경우.
     return {
       pose: SIX_POSES[idx]!,
       index: idx,
@@ -155,13 +180,17 @@ export const onRequestPost: PagesFunction<Env> = async (ctx) => {
     totalDurationMs,
     shots,
     okCount,
-    estimatedCostUsd: okCount * COST_PER_SHOT_USD,
+    estimatedCostUsd: okCount * ESTIMATED_COST_PER_SHOT_USD,
     meta: {
       model: 'gpt-image-2',
       size: IMAGE_SIZE,
       quality: 'standard',
       promptPattern: `${modelDesc}, wearing ${clothingDesc}, [POSE]`,
     },
+    validationNote:
+      '검증 #2 (얼굴 일관성)은 text-only baseline 이라 FAIL 예상. ' +
+      'Sprint 2 첫 작업으로 images.edit + reference image 전환 예정. ' +
+      '본 PoC 의 실질 검증 대상: #1 (6컷 생성), #3 (옷 디테일), #4 (비용 — shots[*].usage 합산 확인).',
   };
 
   return new Response(JSON.stringify(response, null, 2), {
@@ -199,7 +228,6 @@ async function generateOneShot(args: {
       n: 1,
       size: IMAGE_SIZE,
       quality: 'standard',
-      // gpt-image 계열은 b64_json 만 지원하는 케이스가 많아 명시.
       response_format: 'b64_json',
     }),
   });
@@ -235,10 +263,8 @@ async function generateOneShot(args: {
     };
   }
 
-  // base64 → ArrayBuffer
   const bytes = base64ToBytes(b64);
 
-  // PoC 는 가짜 userId/ownerId 로 R2 key 생성. Sprint 2 부터 실제 sku.id 사용.
   const key = buildR2Key({
     kind: 'shot',
     userId: 'poc-user',
@@ -252,14 +278,25 @@ async function generateOneShot(args: {
     index,
     status: 'ok',
     url: publicUrl(env, key),
+    usage: json.usage,
+    revisedPrompt: json.data[0]?.revised_prompt,
     durationMs: Date.now() - t0,
   };
 }
 
 /**
- * Workers 런타임은 Buffer 가 없어 atob 사용.
- * 256KB ~ 2MB 이미지에 충분.
+ * 길이 다른 문자열도 안전하게 비교 (timing-safe-ish).
+ * 32-char 토큰 기준 충분.
  */
+function constantTimeEquals(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
